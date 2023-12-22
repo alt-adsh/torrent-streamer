@@ -21,8 +21,8 @@ app.get('/stream', (req, res) => {
       engine.destroy();
       return res.status(404).send('No video files found in the torrent');
     }
-    res.setHeader('Content-Type', 'video/mp4');
     const file = videoFiles[activeFileIndex];
+    res.setHeader('Content-Type', 'video/mp4');
     const stream = file.createReadStream();
     stream.on('error', (err) => {
       console.error('Error streaming file:', err);
@@ -43,6 +43,43 @@ app.get('/stream', (req, res) => {
   });
 });
 
+app.get('/play', (req, res) => {
+  const magnetLink = req.query.magnet;
+  if (!magnetLink) {
+    return res.status(400).send('No magnet link provided');
+  }
+  const engine = torrentStream(magnetLink);
+  let activeFileIndex = 0;
+  engine.on('ready', () => {
+    const videoFiles = engine.files.filter(file => {
+      const mimeType = mime.lookup(file.name);
+      return mimeType && mimeType.startsWith('video/');
+    });
+    if (videoFiles.length === 0) {
+      engine.destroy();
+      return res.status(404).send('No video files found in the torrent');
+    }
+    const file = videoFiles[activeFileIndex];
+    res.setHeader('Content-Type', mime.lookup(file.name));
+    const stream = file.createReadStream();
+    stream.on('error', (err) => {
+      console.error('Error streaming file:', err);
+      engine.destroy();
+    });
+    stream.on('end', () => {
+      activeFileIndex++;
+      if (activeFileIndex < videoFiles.length) {
+        const nextFile = videoFiles[activeFileIndex];
+        nextFile.select();
+        nextFile.createReadStream().pipe(res);
+      } else {
+        engine.destroy();
+        res.end();
+      }
+    });
+    stream.pipe(res);
+  });
+});
 
 app.get('/info', (req, res) => {
   const magnetURI = req.query.magnet;
