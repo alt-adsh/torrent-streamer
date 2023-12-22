@@ -60,7 +60,11 @@ app.get('/play', (req, res) => {
       return res.status(404).send('No video files found in the torrent');
     }
     const file = videoFiles[activeFileIndex];
-    res.setHeader('Content-Type', mime.lookup(file.name));
+    var mimeType = mime.lookup(file.name);
+    if(mimeType === "video/x-matroska"){
+      mimeType = "video/webm";
+    }
+    res.setHeader('Content-Type', mimeType);
     const stream = file.createReadStream();
     stream.on('error', (err) => {
       console.error('Error streaming file:', err);
